@@ -37,6 +37,16 @@ namespace JOIEnergy
                     EnergySupplier = Enums.Supplier.DrEvilsDarkEnergy,
                     UnitRate = 10m,
                     PeakTimeMultiplier = new List<PeakTimeMultiplier>()
+                    {
+                        new PeakTimeMultiplier(){
+                            DayOfWeek = DayOfWeek.Sunday,
+                            Multiplier = 5m
+                        },
+                         new PeakTimeMultiplier(){
+                            DayOfWeek = DayOfWeek.Saturday,
+                            Multiplier = 5m
+                        }
+                    }
                 },
                 new PricePlan{
                     PlanName = RENEWABLES_PRICE_PLAN_ID,
@@ -49,6 +59,16 @@ namespace JOIEnergy
                     EnergySupplier = Enums.Supplier.PowerForEveryone,
                     UnitRate = 1m,
                     PeakTimeMultiplier = new List<PeakTimeMultiplier>()
+                    {
+                        new PeakTimeMultiplier(){
+                            DayOfWeek = DayOfWeek.Sunday,
+                            Multiplier = 2m
+                        },
+                        new PeakTimeMultiplier(){
+                            DayOfWeek = DayOfWeek.Saturday,
+                            Multiplier = 2m
+                        }
+                    }
                 }
             };
 
