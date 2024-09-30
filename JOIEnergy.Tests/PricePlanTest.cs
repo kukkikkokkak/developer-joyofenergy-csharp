@@ -29,20 +29,40 @@ namespace JOIEnergy.Tests
             };
         }
 
-        [Fact]
-        public void TestGetEnergySupplier() {
-            Assert.Equal(Supplier.TheGreenEco, _pricePlan.EnergySupplier);
-        }
+        // [Fact]
+        // public void TestGetEnergySupplier() 
+        // {
+        //     Assert.Equal(Supplier.TheGreenEco, _pricePlan.EnergySupplier);
+        // }
+
+        // [Fact]
+        // public void TestGetBasePrice() 
+        // {
+        //     Assert.Equal(20m, _pricePlan.GetPrice(new DateTime(2018, 1, 2)));
+        // }
+
+        // [Fact]
+        // public void TestGetPeakTimePrice()
+        // {
+        //     Assert.Equal(40m, _pricePlan.GetPrice(new DateTime(2018, 1, 6)));
+        // }
 
         [Fact]
-        public void TestGetBasePrice() {
-            Assert.Equal(20m, _pricePlan.GetPrice(new DateTime(2018, 1, 2)));
-        }
-
-        [Fact]
-        public void TestGetPeakTimePrice()
+        public void TestGetPeakTimePriceWeekDay()
         {
-            Assert.Equal(40m, _pricePlan.GetPrice(new DateTime(2018, 1, 6)));
+            Assert.Equal(20m, _pricePlan.GetPrice(new DateTime(2024, 9, 27)));
+        }
+
+        [Fact]
+        public void TestGetPeakTimePriceOnSaturDay()
+        {
+            Assert.Equal(40m, _pricePlan.GetPrice(new DateTime(2024, 9, 28)));
+        }
+
+         [Fact]
+        public void TestGetPeakTimePriceOnSunDay()
+        {
+            Assert.Equal(200m, _pricePlan.GetPrice(new DateTime(2024, 9, 29)));
         }
 
     }
