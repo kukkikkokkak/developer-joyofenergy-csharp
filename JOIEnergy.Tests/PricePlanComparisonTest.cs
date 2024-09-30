@@ -8,13 +8,16 @@ using System.Linq;
 using Xunit;
 using Newtonsoft.Json.Linq;
 using System.Collections;
+using System.Text.Json;
+using Newtonsoft.Json;
 
 namespace JOIEnergy.Tests
 {
     public class PricePlanComparisonTest
     {
         private MeterReadingService meterReadingService;
-        private PricePlanComparatorController controller;
+        private PricePlanComparatorController controllerWithNoMultipliers;
+        private PricePlanComparatorController controllerWithMultipliers;
 
         private static string PRICE_PLAN_1_ID = "test-supplier";
         private static string PRICE_PLAN_2_ID = "best-supplier";
@@ -25,28 +28,48 @@ namespace JOIEnergy.Tests
         {
             var readings = new Dictionary<string, List<Domain.ElectricityReading>>();
             meterReadingService = new MeterReadingService(readings);
-            var pricePlans = new List<PricePlan>() { 
-                new PricePlan() { PlanName = PRICE_PLAN_1_ID, UnitRate = 10, PeakTimeMultiplier = NoMultipliers() }, 
+            var pricePlans = new List<PricePlan>() {
+                new PricePlan() { PlanName = PRICE_PLAN_1_ID, UnitRate = 10, PeakTimeMultiplier = NoMultipliers() },
                 new PricePlan() { PlanName = PRICE_PLAN_2_ID, UnitRate = 1, PeakTimeMultiplier = NoMultipliers() },
-                new PricePlan() { PlanName = PRICE_PLAN_3_ID, UnitRate = 2, PeakTimeMultiplier = NoMultipliers() } 
+                new PricePlan() { PlanName = PRICE_PLAN_3_ID, UnitRate = 2, PeakTimeMultiplier = NoMultipliers() }
+            };
+            var pricePlansWithMultipliers = new List<PricePlan>() {
+                new PricePlan() { PlanName = PRICE_PLAN_1_ID, UnitRate = 10, PeakTimeMultiplier = new List<PeakTimeMultiplier>()
+                {
+                    new PeakTimeMultiplier() {
+                        DayOfWeek = DayOfWeek.Sunday,
+                        Multiplier = 10m
+                    }
+                } },
+                new PricePlan() { PlanName = PRICE_PLAN_2_ID, UnitRate = 1, PeakTimeMultiplier = NoMultipliers() },
+                new PricePlan() { PlanName = PRICE_PLAN_3_ID, UnitRate = 5, PeakTimeMultiplier = new List<PeakTimeMultiplier>(){
+                    new PeakTimeMultiplier() {
+                        DayOfWeek = DayOfWeek.Sunday,
+                        Multiplier = 5m
+                    }
+                }}
             };
             var pricePlanService = new PricePlanService(pricePlans, meterReadingService);
+            var pricePlanServiceWithMultipliers = new PricePlanService(pricePlansWithMultipliers, meterReadingService);
+            
             var smartMeterToPricePlanAccounts = new Dictionary<string, string>
             {
                 { SMART_METER_ID, PRICE_PLAN_1_ID }
             };
             var accountService = new AccountService(smartMeterToPricePlanAccounts);
-            controller = new PricePlanComparatorController(pricePlanService, accountService);
+            controllerWithNoMultipliers = new PricePlanComparatorController(pricePlanService, accountService);
+            controllerWithMultipliers = new PricePlanComparatorController(pricePlanServiceWithMultipliers, accountService);
         }
 
         [Fact]
-        public void ShouldCalculateCostForMeterReadingsForEveryPricePlan()
+        public void ShouldCalculateCostForMeterReadingsForEveryPricePlanWithNoMultipliers()
         {
             var electricityReading = new ElectricityReading() { Time = DateTime.Now.AddHours(-1), Reading = 15.0m };
             var otherReading = new ElectricityReading() { Time = DateTime.Now, Reading = 5.0m };
             meterReadingService.StoreReadings(SMART_METER_ID, new List<ElectricityReading>() { electricityReading, otherReading });
 
-            Dictionary<string, object> result = controller.CalculatedCostForEachPricePlan(SMART_METER_ID).Value as Dictionary<string, object>;
+            Dictionary<string, object> result = controllerWithNoMultipliers.CalculatedCostForEachPricePlan(SMART_METER_ID).Value as Dictionary<string, object>;
+            //Console.WriteLine("CalculatedCostForEachPricePlan: result =>" + JsonConvert.SerializeObject(result));
 
             Assert.NotNull(result);
             Assert.Equal(PRICE_PLAN_1_ID, result[PricePlanComparatorController.PRICE_PLAN_ID_KEY]);
@@ -59,6 +82,24 @@ namespace JOIEnergy.Tests
         }
 
         [Fact]
+        public void ShouldCalculateCostForMeterReadingsForEveryPricePlanWithMultipliers() 
+        {
+            //var electricityReading = new ElectricityReading() { Time = DateTime.Now.AddHours(-1), Reading = 10.0m };
+            var otherReading = new ElectricityReading() { Time = DateTime.Now, Reading = 10.0m };
+            meterReadingService.StoreReadings(SMART_METER_ID, new List<ElectricityReading>() {otherReading });
+
+            Dictionary<string, object> result = controllerWithMultipliers.CalculatedCostForEachPricePlanWithMultipliers(SMART_METER_ID).Value as Dictionary<string, object>;
+            Assert.NotNull(result);
+            Assert.Equal(PRICE_PLAN_1_ID, result[PricePlanComparatorController.PRICE_PLAN_ID_KEY]);
+            var expected = new Dictionary<string, decimal>() {
+                { PRICE_PLAN_1_ID, 1000m },
+                { PRICE_PLAN_2_ID, 10m },
+                { PRICE_PLAN_3_ID, 250m },
+            };
+            Assert.Equal(expected, result[PricePlanComparatorController.PRICE_PLAN_COMPARISONS_KEY]);
+        }
+
+        [Fact]
         public void ShouldRecommendCheapestPricePlansNoLimitForMeterUsage()
         {
             meterReadingService.StoreReadings(SMART_METER_ID, new List<ElectricityReading>() {
@@ -66,7 +107,7 @@ namespace JOIEnergy.Tests
                 new ElectricityReading() { Time = DateTime.Now, Reading = 3m }
             });
 
-            object result = controller.RecommendCheapestPricePlans(SMART_METER_ID, null).Value;
+            object result = controllerWithNoMultipliers.RecommendCheapestPricePlans(SMART_METER_ID, null).Value;
 
             var recommendations = ((IEnumerable<KeyValuePair<string, decimal>>)result).ToList();
             var expected = new List<KeyValuePair<string, decimal>>() {
@@ -78,14 +119,14 @@ namespace JOIEnergy.Tests
         }
 
         [Fact]
-        public void ShouldRecommendLimitedCheapestPricePlansForMeterUsage() 
+        public void ShouldRecommendLimitedCheapestPricePlansForMeterUsage()
         {
             meterReadingService.StoreReadings(SMART_METER_ID, new List<ElectricityReading>() {
                 new ElectricityReading() { Time = DateTime.Now.AddMinutes(-45), Reading = 5m },
                 new ElectricityReading() { Time = DateTime.Now, Reading = 20m }
             });
 
-            object result = controller.RecommendCheapestPricePlans(SMART_METER_ID, 2).Value;
+            object result = controllerWithNoMultipliers.RecommendCheapestPricePlans(SMART_METER_ID, 2).Value;
 
             var recommendations = ((IEnumerable<KeyValuePair<string, decimal>>)result).ToList();
             var expected = new List<KeyValuePair<string, decimal>>() {
@@ -103,7 +144,7 @@ namespace JOIEnergy.Tests
                 new ElectricityReading() { Time = DateTime.Now, Reading = 3m }
             });
 
-            object result = controller.RecommendCheapestPricePlans(SMART_METER_ID, 5).Value;
+            object result = controllerWithNoMultipliers.RecommendCheapestPricePlans(SMART_METER_ID, 5).Value;
 
             var recommendations = ((IEnumerable<KeyValuePair<string, decimal>>)result).ToList();
             var expected = new List<KeyValuePair<string, decimal>>() {
@@ -117,7 +158,7 @@ namespace JOIEnergy.Tests
         [Fact]
         public void GivenNoMatchingMeterIdShouldReturnNotFound()
         {
-            Assert.Equal(404, controller.CalculatedCostForEachPricePlan("not-found").StatusCode);
+            Assert.Equal(404, controllerWithNoMultipliers.CalculatedCostForEachPricePlan("not-found").StatusCode);
         }
 
         private static List<PeakTimeMultiplier> NoMultipliers()

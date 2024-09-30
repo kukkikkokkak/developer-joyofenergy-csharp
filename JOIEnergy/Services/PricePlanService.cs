@@ -40,6 +40,14 @@ namespace JOIEnergy.Services
             return Math.Round(averagedCost * pricePlan.UnitRate, 3);
         }
 
+        private decimal calculateCostWithMultipliers(List<ElectricityReading> electricityReadings, PricePlan pricePlan)
+        {
+            return electricityReadings
+                    .Select(x => pricePlan.GetPrice(x.Time) * x.Reading)
+                    .Aggregate((intervalCost, cost) => intervalCost + cost);
+            
+        }
+
         public Dictionary<string, decimal> GetConsumptionCostOfElectricityReadingsForEachPricePlan(string smartMeterId)
         {
             List<ElectricityReading> electricityReadings = _meterReadingService.GetReadings(smartMeterId);
@@ -49,6 +57,20 @@ namespace JOIEnergy.Services
                 return new Dictionary<string, decimal>();
             }
             return _pricePlans.ToDictionary(plan => plan.PlanName, plan => calculateCost(electricityReadings, plan));
+            // return _pricePlans.ToDictionary(plan => plan.PlanName, plan => calculateCostWithMultipliers(electricityReadings, plan));
         }
+
+         public Dictionary<string, decimal> GetConsumptionCostOfElectricityReadingsForEachPricePlanWithMultipliers(string smartMeterId)
+        {
+            List<ElectricityReading> electricityReadings = _meterReadingService.GetReadings(smartMeterId);
+
+            if (!electricityReadings.Any())
+            {
+                return new Dictionary<string, decimal>();
+            }
+            //return _pricePlans.ToDictionary(plan => plan.PlanName, plan => calculateCost(electricityReadings, plan));
+            return _pricePlans.ToDictionary(plan => plan.PlanName, plan => calculateCostWithMultipliers(electricityReadings, plan));
+        }
+
     }
 }
